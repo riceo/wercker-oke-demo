@@ -22,9 +22,10 @@ spec:
       containers:
       - name: get-ip-server
         image: ${DOCKER_REPO}:${WERCKER_GIT_COMMIT}
-      imagePullSecrets:
-      - name:  ${OKE_IMAGESECRET}
-      ports:
+        ports:
         - name: get-ip-server
           containerPort: 8080
           protocol: TCP
+      imagePullSecrets:
+      - name:  ${OKE_IMAGESECRET}
+
