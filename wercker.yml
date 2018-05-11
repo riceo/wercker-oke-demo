@@ -9,18 +9,18 @@ build:
         name: Nose tests
         code: bin/tests
 
-    # Take our tested application revision and its dependencies, bake it in to a
+        # Take our tested application revision and its dependencies, bake it in to a
     # Docker image, and push to GCR.
     - internal/docker-push:
-        entrypoint: bin/get_ip
-        cmd: 0.0.0.0 8080
-        working-dir: $WERCKER_ROOT
-        tag: $WERCKER_GIT_COMMIT
-        ports: "8080"
-        username: _json_key
-        password: $GCP_KEY_JSON
-        repository: $GCR_TAG
-        registry: $GCR_HOST
+            entrypoint: bin/get_ip
+            cmd: 0.0.0.0 8080
+            working-dir: $WERCKER_ROOT
+            tag: $WERCKER_GIT_COMMIT
+            ports: "8080"
+            username: $DOCKER_USERNAME
+            password: $DOCKER_PASSWORD
+            repository: $DOCKER_REPO
+            registry: https://iad.ocir.io/v2
 
 deploy-to-kubernetes:
     box: python:2.7
@@ -40,17 +40,27 @@ deploy-to-kubernetes:
           mkdir $WERCKER_OUTPUT_DIR/kubernetes
           mv kubernetes_*.yml $WERCKER_OUTPUT_DIR/kubernetes
 
-    # Since we're using GKE, we'll use a fork of the kubectl step that supports
-    # GKE service account authentication. We need to pass some GKE specific configuration
-    # to ensure we can authenticate, then point kubectl at the directory containing our
-    # Kubernetes configuration.
-
     # `apply` is a good command to use here, as it'll create Kubernetes entities if they are missing.
-    - riceo/kubectl:
+    - kubectl:
         name: deploy to kubernetes
-        server: $KUBERNETES_MASTER
-        gcloud-key-json: $GCP_KEY_JSON
-        gke-cluster-name: $GKE_CLUSTER_NAME
-        gke-cluster-zone: $GKE_CLUSTER_ZONE
-        gke-cluster-project: $GKE_CLUSTER_PROJECT
+        server: $OKE_MASTER
+        token: $OKE_TOKEN
+        insecure-skip-tls-verify: true
         command: apply -f $WERCKER_OUTPUT_DIR/kubernetes/
+
+    # Tell Kubernetes that we're going to wait 60 seconds for the deploy to be successful
+    - kubectl:
+        name: set deployment timeout
+        server: $OKE_MASTER
+        token: $OKE_TOKEN
+        insecure-skip-tls-verify: true
+        command: patch deployment/get-ip -p '{"spec":{"progressDeadlineSeconds":60}}'
+
+    # Watch the Kubernetes deployment. Once the pods are considered healthy the step will exit 0
+    # If they aren't healthy within 60 seconds, it will exit with a non 0 exit code, and cause the run to fail.
+    - kubectl:
+        name: check deployment status
+        server: $OKE_MASTER
+        token: $OKE_TOKEN
+        insecure-skip-tls-verify: true
+        command: rollout status deployment/get-ip

@@ -21,8 +21,10 @@ spec:
     spec:
       containers:
       - name: get-ip-server
-        image: ${GCR_TAG}:${WERCKER_GIT_COMMIT}
-        ports:
+        image: ${DOCKER_REPO}:${WERCKER_GIT_COMMIT}
+      imagePullSecrets:
+      - name:  ${OKE_IMAGESECRET}
+	ports:
         - name: get-ip-server
           containerPort: 8080
           protocol: TCP
